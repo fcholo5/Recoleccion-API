@@ -61,6 +61,7 @@ class AuthController extends Controller
         // Devuelve una respuesta exitosa con el rol del usuario y el token de autenticación.
         return response()->json([
             'success' => 1,
+            'name'=> $user->name,
             'role' => $roleName,
             'data' => $token,
         ]);
