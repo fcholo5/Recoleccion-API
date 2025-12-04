@@ -1,0 +1,47 @@
+name: 🚀 Deploy Laravel Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🔍 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐘 Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, xml, ctype, json, tokenizer, fileinfo, curl, mysql, pdo, pdo_mysql
+          coverage: none
+
+      - name: 📦 Install Composer dependencies
+        run: |
+          composer install --no-dev --no-progress --no-suggest --prefer-dist --optimize-autoloader
+
+      - name: consider doing this on server instead)
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_CONNECTION: mysql
+          APP_ENV: production
+          APP_KEY: ${{ secrets.APP_KEY }}
+        run: php artisan migrate --force
+
+      - name: 📤 Deploy to production server
+        uses: easingthemes/ssh-deploy@v2.1.5
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          ARGS: "-rltgoDzvO --delete"
+          SOURCE: "./"
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          TARGET: ${{ secrets.REMOTE_PATH }}
+          EXCLUDE: "/.git/,/storage/,/vendor/,/.env"
