@@ -46,7 +46,7 @@ jobs:
           recursive: true
           overwrite: true
           strip_components: 1
-          exclude: ".git/,tests/"
+          exclude: ".git/,tests/,storage/,vendor/,.env"
 
       - name: ⚙️ Configurar permisos y migrar
         uses: appleboy/ssh-action@v1
