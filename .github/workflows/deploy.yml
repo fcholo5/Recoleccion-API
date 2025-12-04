@@ -10,9 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ----------------- CHECKOUT -----------------
       - name: 🔍 Checkout código
         uses: actions/checkout@v4
 
+      # ----------------- PHP -----------------
       - name: 🐘 Configurar PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -20,10 +22,13 @@ jobs:
           extensions: mbstring, bcmath, xml, ctype, json, tokenizer, fileinfo, curl, pgsql, pdo, pdo_pgsql
           tools: composer:v2
 
-      - name: 📦 Instalar dependencias
-        run: composer install --no-dev --optimize-autoloader
+      # ----------------- DEPENDENCIAS -----------------
+      - name: 📦 Instalar dependencias de Composer (producción)
+        run: |
+          composer install --no-dev --no-progress --no-suggest --prefer-dist --optimize-autoloader
 
-      - name: 🧹 Limpiar contenido anterior
+      # ----------------- LIMPIAR CARPETA EN SERVIDOR -----------------
+      - name: 🧹 Limpiar contenido anterior (excepto .env)
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -31,10 +36,12 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           script: |
-            rm -rf /home/fabian_panameno/api/*
-            echo "✔ Carpeta de backend limpiada"
+            # Eliminar todo excepto .env (si existe)
+            find /home/fabian_panameno/api -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + 2>/dev/null || true
+            echo "✔ Carpeta de backend limpiada (se preservó .env si existía)"
 
-      - name: 📤 Subir backend al servidor
+      # ----------------- SUBIR ARCHIVOS -----------------
+      - name: 📤 Subir código al servidor
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -46,9 +53,19 @@ jobs:
           recursive: true
           overwrite: true
           strip_components: 1
-          exclude: ".git/,tests/,storage/,vendor/,.env"
+          # Excluimos archivos innecesarios y protegemos .env
+          exclude: |
+            .git/
+            .github/
+            tests/
+            storage/
+            vendor/
+            .env
+            .env.example
+            README.md
 
-      - name: ⚙️ Configurar permisos y migrar
+      # ----------------- CONFIGURAR Y MIGRAR EN SERVIDOR -----------------
+      - name: ⚙️ Configurar permisos y ejecutar migraciones
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -57,10 +74,21 @@ jobs:
           port: ${{ secrets.SERVER_PORT || '22' }}
           script: |
             cd /home/fabian_panameno/api
+
+            # Asegurar permisos de escritura
             chmod -R 775 storage bootstrap/cache
             chown -R fabian_panameno:fabian_panameno storage bootstrap/cache
+
+            # Limpiar caché antigua
             php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+
+            # Aplicar migraciones (¡en el servidor, con PostgreSQL!)
             php artisan migrate --force
+
+            # Optimizar para producción
             php artisan config:cache
+            php artisan route:cache
+
             echo "✅ Backend Laravel desplegado correctamente"
-            
