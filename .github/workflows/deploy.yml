@@ -13,35 +13,50 @@ jobs:
       - name: 🔍 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐘 Set up PHP
-        uses: shivammathur/setup-php@v2
+      - name: 📤 Deploy files to production server
+        uses: appleboy/scp-action@v0.1.7
         with:
-          php-version: '8.2'
-          extensions: mbstring, bcmath, xml, ctype, json, tokenizer, fileinfo, curl, pgsql, pdo, pdo_pgsql
-          coverage: none
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || '22' }}
+          source: "."
+          target: "/var/www/fabian_api/"
+          strip_components: 1
+          exclude: ".git,.env,.github"
 
-      - name: 📦 Install Composer dependencies
-        run: |
-          composer install --no-dev --no-progress --no-suggest --prefer-dist --optimize-autoloader
+      - name: ⚙️ Run post-deploy commands on server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || '22' }}
+          script: |
+            cd /var/www/fabian_api
 
-      - name:  consider doing this on server instead)
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_DATABASE: ${{ secrets.DB_DATABASE }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_CONNECTION: mysql
-          APP_ENV: production
-          APP_KEY: ${{ secrets.APP_KEY }}
-        run: php artisan migrate --force
+            # Instalar dependencias (si no estás subiendo vendor/)
+            composer install --no-dev --optimize-autoloader
 
-      - name: 📤 Deploy to production server
-        uses: easingthemes/ssh-deploy@v2.1.5
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          ARGS: "-rltgoDzvO --delete"
-          SOURCE: "./"
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-          REMOTE_USER: ${{ secrets.REMOTE_USER }}
-          TARGET: ${{ secrets.REMOTE_PATH }}
-          EXCLUDE: "/.git/,/storage/,/vendor/,/.env"
+            # Asegurarse de que storage y cache son escribibles
+            chmod -R 775 storage bootstrap/cache
+            chown -R www-data:www-data storage bootstrap/cache
+
+            # Si aún no existe .env, crearlo desde .env.example y ajustar
+            if [ ! -f .env ]; then
+              cp .env.example .env
+              php artisan key:generate --force
+            fi
+
+            # Configurar variables de entorno (opcional: puedes inyectarlas desde secrets si prefieres)
+            # Aquí asumimos que ya existe un .env válido o lo configuras manualmente
+
+            # Ejecutar migraciones
+            php artisan migrate --force
+
+            # Optimizar (opcional, pero recomendado en producción)
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            echo "✔ Backend deploy completado"
