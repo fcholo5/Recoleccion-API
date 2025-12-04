@@ -48,8 +48,8 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
-          source: "."
-          target: "/home/fabian_panameno/api/"
+          source: "api/"
+          target: "/var/www/fabian_site/"
           recursive: true
           overwrite: true
           strip_components: 1
