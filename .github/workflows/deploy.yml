@@ -13,7 +13,22 @@ jobs:
       - name: 🔍 Checkout code
         uses: actions/checkout@v4
 
-      - name: 📤 Deploy files to production server
+      - name: 🐘 Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, xml, ctype, json, tokenizer, fileinfo, curl, pgsql, pdo, pdo_pgsql
+          tools: composer:v2
+
+      - name: 📦 Install Composer dependencies (sin dev)
+        run: composer install --no-dev --no-progress --no-suggest --prefer-dist --optimize-autoloader
+
+      - name: 🧹 Remove unnecessary files
+        run: |
+          rm -rf .git .github tests
+          # Opcional: compilar assets si los tienes (pero en backend puro Laravel no suele haber)
+
+      - name: 📤 Upload code to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -21,11 +36,12 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           source: "."
-          target: "/var/www/fabian_api/"
+          target: "/var/www/tu_proyecto_backend/"
+          recursive: true
+          overwrite: true
           strip_components: 1
-          exclude: ".git,.env,.github"
 
-      - name: ⚙️ Run post-deploy commands on server
+      - name: ⚙️ Run server-side setup
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -33,30 +49,18 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           script: |
-            cd /var/www/fabian_api
+            cd /var/www/tu_proyecto_backend
 
-            # Instalar dependencias (si no estás subiendo vendor/)
-            composer install --no-dev --optimize-autoloader
-
-            # Asegurarse de que storage y cache son escribibles
+            # Asegurar permisos
             chmod -R 775 storage bootstrap/cache
             chown -R www-data:www-data storage bootstrap/cache
 
-            # Si aún no existe .env, crearlo desde .env.example y ajustar
-            if [ ! -f .env ]; then
-              cp .env.example .env
-              php artisan key:generate --force
-            fi
-
-            # Configurar variables de entorno (opcional: puedes inyectarlas desde secrets si prefieres)
-            # Aquí asumimos que ya existe un .env válido o lo configuras manualmente
-
-            # Ejecutar migraciones
-            php artisan migrate --force
-
-            # Optimizar (opcional, pero recomendado en producción)
+            # Optimizar (opcional pero recomendado en producción)
             php artisan config:cache
             php artisan route:cache
-            php artisan view:cache
+            php artisan event:cache
 
-            echo "✔ Backend deploy completado"
+            # Ejecutar migraciones (con --force porque es producción)
+            php artisan migrate --force
+
+            echo "✅ Backend Laravel desplegado y migrado correctamente"
