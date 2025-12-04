@@ -10,38 +10,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🔍 Checkout code
+      - name: 🔍 Checkout código
         uses: actions/checkout@v4
 
-      - name: 🐘 Set up PHP
+      - name: 🐘 Configurar PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           extensions: mbstring, bcmath, xml, ctype, json, tokenizer, fileinfo, curl, pgsql, pdo, pdo_pgsql
           tools: composer:v2
 
-      - name: 📦 Install Composer dependencies (sin dev)
-        run: composer install --no-dev --no-progress --no-suggest --prefer-dist --optimize-autoloader
+      - name: 📦 Instalar dependencias
+        run: composer install --no-dev --optimize-autoloader
 
-      - name: 🧹 Remove unnecessary files
-        run: |
-          rm -rf .git .github tests
-          # Opcional: compilar assets si los tienes (pero en backend puro Laravel no suele haber)
-
-      - name: 📤 Upload code to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || '22' }}
-          source: "."
-          target: "/var/www/tu_proyecto_backend/"
-          recursive: true
-          overwrite: true
-          strip_components: 1
-
-      - name: ⚙️ Run server-side setup
+      - name: 🧹 Limpiar contenido anterior
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -49,18 +31,35 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           script: |
-            cd /var/www/tu_proyecto_backend
+            rm -rf /home/fabian_panameno/api/*
+            echo "✔ Carpeta de backend limpiada"
 
-            # Asegurar permisos
+      - name: 📤 Subir backend al servidor
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || '22' }}
+          source: "."
+          target: "/home/fabian_panameno/api/"
+          recursive: true
+          overwrite: true
+          strip_components: 1
+          exclude: ".git/,tests/"
+
+      - name: ⚙️ Configurar permisos y migrar
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || '22' }}
+          script: |
+            cd /home/fabian_panameno/api
             chmod -R 775 storage bootstrap/cache
-            chown -R www-data:www-data storage bootstrap/cache
-
-            # Optimizar (opcional pero recomendado en producción)
-            php artisan config:cache
-            php artisan route:cache
-            php artisan event:cache
-
-            # Ejecutar migraciones (con --force porque es producción)
+            chown -R fabian_panameno:fabian_panameno storage bootstrap/cache
+            php artisan config:clear
             php artisan migrate --force
-
-            echo "✅ Backend Laravel desplegado y migrado correctamente"
+            php artisan config:cache
+            echo "✅ Backend Laravel desplegado correctamente"
