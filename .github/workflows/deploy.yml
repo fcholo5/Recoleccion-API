@@ -91,4 +91,4 @@ jobs:
             php artisan config:cache
             php artisan route:cache
 
-            echo "✅ Backend Laravel desplegado correctamente."
+            echo "✅ Backend Laravel desplegado correctamente"
