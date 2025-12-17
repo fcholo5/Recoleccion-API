@@ -41,8 +41,8 @@ jobs:
             echo "✔ Carpeta de backend limpiada (se preservó .env si existía)"
 
       # ----------------- SUBIR ARCHIVOS -----------------
-      - name: 📤 Subir código al servidor (rsync)
-        uses: appleboy/rsync-action@v0.1.8
+      - name: 📤 Subir código al servidor
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
@@ -50,8 +50,19 @@ jobs:
           port: ${{ secrets.SERVER_PORT || '22' }}
           source: "api/"
           target: "/var/www/fabian_site/"
-          # Usamos args para pasar exclusiones y opciones de rsync
-          args: "-avz --delete --exclude='.git/' --exclude='.github/' --exclude='tests/' --exclude='storage/' --exclude='vendor/' --exclude='.env' --exclude='.env.example' --exclude='README.md'"
+          recursive: true
+          overwrite: true
+          strip_components: 1
+          # Excluimos archivos innecesarios y protegemos .env
+          exclude: |
+            .git/
+            .github/
+            tests/
+            storage/
+            vendor/
+            .env
+            .env.example
+            README.md
 
       # ----------------- CONFIGURAR Y MIGRAR EN SERVIDOR -----------------
       - name: ⚙️ Configurar permisos y ejecutar migraciones
