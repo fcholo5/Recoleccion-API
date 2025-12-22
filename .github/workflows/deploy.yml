@@ -26,7 +26,6 @@ jobs:
       - name: 📦 Instalar dependencias de Composer (producción)
         run: |
           composer install --no-dev --no-progress --no-suggest --prefer-dist --optimize-autoloader
-
       # ----------------- LIMPIAR CARPETA EN SERVIDOR -----------------
       - name: 🧹 Limpiar contenido anterior (excepto .env)
         uses: appleboy/ssh-action@v1
@@ -39,7 +38,6 @@ jobs:
             # Eliminar todo excepto .env (si existe)
             find /home/fabian_panameno/api -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + 2>/dev/null || true
             echo "✔ Carpeta de backend limpiada (se preservó .env si existía)"
-
       # ----------------- SUBIR ARCHIVOS -----------------
       - name: 📤 Subir código al servidor
         uses: appleboy/scp-action@v0.1.7
@@ -48,8 +46,8 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
-          source: "api/"
-          target: "/var/www/fabian_site/"
+          source: "."
+          target: "/home/fabian_panameno/api/"
           recursive: true
           overwrite: true
           strip_components: 1
@@ -63,7 +61,6 @@ jobs:
             .env
             .env.example
             README.md
-
       # ----------------- CONFIGURAR Y MIGRAR EN SERVIDOR -----------------
       - name: ⚙️ Configurar permisos y ejecutar migraciones
         uses: appleboy/ssh-action@v1
@@ -74,21 +71,16 @@ jobs:
           port: ${{ secrets.SERVER_PORT || '22' }}
           script: |
             cd /home/fabian_panameno/api
-
             # Asegurar permisos de escritura
             chmod -R 775 storage bootstrap/cache
             chown -R fabian_panameno:fabian_panameno storage bootstrap/cache
-
             # Limpiar caché antigua
             php artisan config:clear
             php artisan cache:clear
             php artisan route:clear
-
             # Aplicar migraciones (¡en el servidor, con PostgreSQL!)
             php artisan migrate --force
-
             # Optimizar para producción
             php artisan config:cache
             php artisan route:cache
-
             echo "✅ Backend Laravel desplegado correctamente"
